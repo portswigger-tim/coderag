@@ -1,0 +1,37 @@
+[project]
+name = "coderag"
+version = "0.1.0"
+description = "A context-economy engine for agentic work on large codebases"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "neo4j>=5.28,<7",
+    "tree-sitter>=0.25",
+    "tree-sitter-language-pack>=1.20",
+    "fastembed>=0.8",
+    "typer>=0.15",
+    "rich>=14",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "pathspec>=0.12",
+    "pyyaml>=6.0",
+    "mcp>=1.2",
+]
+
+[project.scripts]
+coderag = "coderag.cli:app"
+coderag-mcp = "coderag.mcp_server:main"
+
+[dependency-groups]
+dev = ["pytest>=8.3", "pytest-asyncio>=0.24"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/coderag"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["neo4j: requires a running Neo4j instance"]

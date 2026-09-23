@@ -1,0 +1,40 @@
+services:
+  neo4j:
+    image: neo4j:5.26-community
+    container_name: coderag-neo4j
+    ports:
+      # Bound to loopback deliberately. Authentication is off (below), so the
+      # only thing keeping this database private is that it is not reachable
+      # from the network. Docker publishes to every interface by default,
+      # which with auth disabled would expose it to the whole LAN.
+      - "127.0.0.1:7474:7474"   # browser
+      - "127.0.0.1:7687:7687"   # bolt
+    environment:
+      # No authentication. This is a local-only development database that is
+      # never exposed beyond loopback, so a password would be a credential to
+      # manage rather than a control that protects anything. Do not copy this
+      # stanza to anything reachable from a network.
+      NEO4J_AUTH: none
+      NEO4J_server_memory_heap_initial__size: 1G
+      NEO4J_server_memory_heap_max__size: 3G
+      NEO4J_server_memory_pagecache_size: 2G
+      # Heap + pagecache must fit inside the *Docker VM*, not the host. On
+      # Docker Desktop that VM defaults to a few GB no matter how much RAM
+      # the machine has, and Neo4j exits with "Invalid memory configuration"
+      # rather than starting degraded. Check `docker info | grep Memory`
+      # before raising these for a very large repository.
+      #
+      # Enables the JDK Vector API (SIMD) for the vector index. Without it
+      # Neo4j logs a warning and falls back to scalar similarity maths.
+      NEO4J_server_jvm_additional: "--add-modules jdk.incubator.vector"
+    volumes:
+      - neo4j-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell 'RETURN 1' || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+volumes:
+  neo4j-data:

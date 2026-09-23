@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+.cache/
+.env
+.pytest_cache/
+dist/
+
+# Claude Code's per-machine settings; the shared .mcp.json is committed.
+.claude/settings.local.json

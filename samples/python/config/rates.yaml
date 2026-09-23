@@ -1,0 +1,14 @@
+# Bulk discount thresholds and per-tier multipliers.
+# Changing a tier here requires a matching member in db.models.Tier.
+bulk_thresholds:
+  - min_quantity: 5
+    discount: 0.05
+  - min_quantity: 10
+    discount: 0.10
+  - min_quantity: 25
+    discount: 0.18
+
+tier_multipliers:
+  bronze: 1.00
+  silver: 0.97
+  gold: 0.94

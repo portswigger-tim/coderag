@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "coderag": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        ".",
+        "coderag-mcp"
+      ]
+    }
+  }
+}

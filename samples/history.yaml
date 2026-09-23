@@ -1,0 +1,113 @@
+# Scripted commit history for the sample repos.
+#
+# Replayed into a throwaway git repo by scripts/make_sample_history.py so
+# co-change edges exist and are deterministic. Dates and authors are fixed,
+# so the resulting edges are assertable in tests.
+#
+# The important shape: each language's config/rates.yaml and its pricing
+# module change together repeatedly, with no import and no call between
+# them. That pair is invisible to static analysis and is exactly the case
+# co-change exists to catch.
+
+author: Sample Author <sample@example.invalid>
+start_date: "2026-01-06"
+
+commits:
+  - message: "Initial import"
+    files: ["python/common/money.py", "python/db/models.py"]
+  - message: "Add order repository"
+    files: ["python/repositories/order_repo.py"]
+  - message: "Add pricing service with bulk discount bands"
+    files: ["python/services/pricing.py", "python/config/rates.yaml"]
+  - message: "Add order service"
+    files: ["python/services/order_service.py"]
+  - message: "Add customer email notifications"
+    files: ["python/notifications/emailer.py"]
+  - message: "Expose order endpoints"
+    files: ["python/api/routes.py"]
+  - message: "Add admin recalculation endpoint"
+    files: ["python/api/admin.py"]
+  - message: "Add browser cart"
+    files: ["typescript/web/cart.ts"]
+  - message: "Cover pricing rules with tests"
+    files: ["python/tests/test_pricing.py"]
+  - message: "Cover the order flow"
+    files: ["python/tests/test_order_flow.py"]
+
+  # --- the co-change signal: rates and pricing move together -------------
+  - message: "Introduce the silver tier"
+    files: ["python/services/pricing.py", "python/config/rates.yaml", "python/db/models.py"]
+  - message: "Retune bulk discount bands for Q1"
+    files: ["python/config/rates.yaml", "python/services/pricing.py"]
+  - message: "Add a 25-book band"
+    files: ["python/config/rates.yaml", "python/services/pricing.py"]
+  - message: "Introduce the gold tier"
+    files: ["python/services/pricing.py", "python/config/rates.yaml", "python/db/models.py"]
+  - message: "Correct the gold multiplier"
+    files: ["python/config/rates.yaml"]
+  - message: "Round prices consistently"
+    files: ["python/services/pricing.py", "python/config/rates.yaml"]
+
+  # --- ordinary churn elsewhere ------------------------------------------
+  - message: "Validate carts before pricing"
+    files: ["python/services/pricing.py", "python/tests/test_pricing.py"]
+  - message: "Return order status from the API"
+    files: ["python/api/routes.py", "python/repositories/order_repo.py"]
+  - message: "Send confirmation on order placement"
+    files: ["python/services/order_service.py", "python/notifications/emailer.py"]
+  - message: "Notify customers of price changes"
+    files: ["python/api/admin.py", "python/notifications/emailer.py"]
+  - message: "Test the settle path"
+    files: ["python/tests/test_order_flow.py", "python/repositories/order_repo.py"]
+  - message: "Validate inbound order payloads"
+    files: ["python/api/forms.py", "python/api/routes.py"]
+  - message: "Client-side quantity validation"
+    files: ["typescript/web/cart.ts"]
+  - message: "Support coupon codes"
+    files: ["python/services/pricing.py", "python/tests/test_pricing.py"]
+  - message: "Tidy money arithmetic"
+    files: ["python/common/money.py"]
+  - message: "Guard against currency mismatch"
+    files: ["python/common/money.py", "python/services/pricing.py"]
+  - message: "Submit orders from the browser"
+    files: ["typescript/web/cart.ts", "python/api/routes.py"]
+  - message: "Document the order flow"
+    files: ["python/services/order_service.py"]
+  - message: "Stabilise order ids"
+    files: ["python/repositories/order_repo.py", "python/tests/test_order_flow.py"]
+  - message: "Final tidy-up"
+    files: ["python/services/pricing.py", "python/config/rates.yaml"]
+
+  # --- the same coupling in the TypeScript sample ------------------------
+  - message: "Port pricing to the browser bundle"
+    files: ["typescript/src/pricing.ts", "typescript/src/money.ts", "typescript/src/models.ts"]
+  - message: "Sync TypeScript discount bands with the service"
+    files: ["typescript/src/pricing.ts", "typescript/config/rates.yaml"]
+  - message: "Add the gold tier to the browser bundle"
+    files: ["typescript/src/pricing.ts", "typescript/config/rates.yaml"]
+  - message: "Correct the browser gold multiplier"
+    files: ["typescript/config/rates.yaml", "typescript/src/pricing.ts"]
+  - message: "Cover browser pricing"
+    files: ["typescript/tests/pricing.test.ts", "typescript/src/pricing.ts"]
+  - message: "Wire the browser order flow"
+    files: ["typescript/src/orderService.ts", "typescript/src/orderRepo.ts", "typescript/src/emailer.ts"]
+
+  # --- the other language samples ----------------------------------------
+  - message: "Add the Go implementation"
+    files: ["go/money.go", "go/models.go", "go/pricing.go"]
+  - message: "Add Go order handling"
+    files: ["go/order_service.go", "go/order_repo.go", "go/emailer.go"]
+  - message: "Cover Go pricing"
+    files: ["go/pricing_test.go", "go/pricing.go"]
+  - message: "Add the Java implementation"
+    files: ["java/src/main/java/shop/Money.java", "java/src/main/java/shop/Tier.java", "java/src/main/java/shop/Cart.java"]
+  - message: "Add Java pricing and orders"
+    files: ["java/src/main/java/shop/PricingService.java", "java/src/main/java/shop/OrderService.java", "java/src/main/java/shop/OrderRepository.java"]
+  - message: "Cover Java pricing"
+    files: ["java/src/test/java/shop/PricingServiceTest.java", "java/src/main/java/shop/PricingService.java"]
+  - message: "Add the Rust implementation"
+    files: ["rust/src/money.rs", "rust/src/models.rs", "rust/src/pricing.rs"]
+  - message: "Add Rust order handling"
+    files: ["rust/src/order_service.rs", "rust/src/order_repo.rs", "rust/src/emailer.rs"]
+  - message: "Cover Rust pricing"
+    files: ["rust/tests/pricing.rs", "rust/src/pricing.rs"]

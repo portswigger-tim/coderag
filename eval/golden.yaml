@@ -1,0 +1,129 @@
+# Golden questions for `coderag eval`.
+#
+# Each entry carries two things: what a correct answer must contain, and the
+# grep an agent would plausibly reach for first. The harness measures both
+# the tokens coderag spends and the tokens the naive grep-then-read path
+# would spend, so cheapness and correctness are scored together. A tool can
+# always be made cheaper by returning less; `expect_*` and `must_contain`
+# are what stop that from looking like an improvement.
+
+# How the naive baseline is modelled. An agent greps, scans the hit list,
+# then opens the most promising files. read_files is how many it opens.
+baseline:
+  read_files: 4
+
+questions:
+  - id: q1
+    repo: bookstore-python
+    baseline_root: python
+    question: "How is the bulk discount calculated?"
+    baseline_grep: "discount"
+    expect_symbols:
+      - services.pricing.PricingService.apply_bulk_discount
+    min_recall: 1.0
+
+  - id: q2
+    repo: bookstore-python
+    baseline_root: python
+    question: "Where are orders persisted?"
+    baseline_grep: "order"
+    expect_symbols:
+      - repositories.order_repo.OrderRepository.save
+    min_recall: 1.0
+
+  - id: q3
+    repo: bookstore-python
+    baseline_root: python
+    question: "How does a customer get an order confirmation email?"
+    baseline_grep: "email"
+    expect_symbols:
+      - notifications.emailer.send_confirmation
+    min_recall: 1.0
+
+  - id: q4
+    repo: bookstore-python
+    baseline_root: python
+    question: "What happens when a customer places an order?"
+    baseline_grep: "place_order"
+    expect_symbols:
+      - api.routes.create_order
+      - services.order_service.OrderService.place_order
+      - services.pricing.PricingService.apply_bulk_discount
+      - notifications.emailer.send_confirmation
+    min_recall: 0.75
+
+  # The grep trap: two unrelated validate() functions in the same codebase --
+  # one checks a domain object, the other checks an HTTP payload. A name-only
+  # search returns both and cannot tell them apart. The graph can.
+  - id: q5
+    repo: bookstore-python
+    baseline_root: python
+    question: "How are carts validated before pricing in the Python service?"
+    baseline_grep: "validate"
+    expect_symbols:
+      - services.pricing.validate
+    forbid_symbols:
+      - api.forms.validate
+    min_recall: 1.0
+
+  # Co-change only. No import and no call connects pricing.py to rates.yaml.
+  - id: q6
+    tool: what_breaks
+    target: services.pricing.PricingService.apply_bulk_discount
+    repo: bookstore-python
+    baseline_root: python
+    question: "If I change the bulk discount thresholds, what else needs updating?"
+    baseline_grep: "bulk_thresholds"
+    must_contain:
+      - "config/rates.yaml"
+    max_tokens: 400
+
+  # TESTED_BY only.
+  - id: q7
+    tool: what_tests
+    target: services.pricing.PricingService.apply_bulk_discount
+    repo: bookstore-python
+    baseline_root: python
+    question: "What tests cover the bulk discount?"
+    baseline_grep: "apply_bulk_discount"
+    must_contain:
+      - "tests/test_pricing.py"
+    max_tokens: 300
+
+  # Context sufficiency: everything required to make a specific change.
+  - id: q8
+    tool: symbol_context
+    target: services.pricing.PricingService.apply_bulk_discount
+    repo: bookstore-python
+    baseline_root: python
+    baseline_grep: "Tier"
+    question: "I need to add a PLATINUM tier. What must the pack tell me?"
+    must_contain:
+      - "Tier"                      # the enum to extend
+      - "config/rates.yaml"  # the rates needing a new entry
+      - "tests/test_pricing.py"  # the test asserting tier behaviour
+      - "order_service"             # the caller that prices with a tier
+    max_tokens: 900
+
+  # Multi-language: the same concept, a different sample.
+  - id: q9
+    repo: bookstore-go
+    baseline_root: go
+    question: "How does the Go implementation apply tier multipliers?"
+    baseline_grep: "TierMultipliers"
+    expect_symbols:
+      - pricing.ApplyBulkDiscount
+    min_recall: 1.0
+
+  - id: q10
+    tool: file_context
+    target: services/pricing.py
+    repo: bookstore-python
+    baseline_root: python
+    baseline_grep: "PricingService"
+    question: "What is in the pricing module?"
+    must_contain:
+      - "apply_bulk_discount"
+      - "base_price"
+      - "apply_coupon"
+    max_tokens: 500
