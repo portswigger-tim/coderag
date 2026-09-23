@@ -7,7 +7,6 @@ no database; the integration tier is selected with `-m neo4j`.
 from __future__ import annotations
 
 import hashlib
-import os
 
 import pytest
 
@@ -48,29 +47,40 @@ class StubEmbedder:
 def neo4j_uri() -> str:
     """A throwaway Neo4j, matching what docker-compose.yml ships.
 
-    Same image and the same auth-disabled configuration, so the tier is
-    testing the deployment the project actually uses rather than a
-    convenient approximation. Honours CODERAG_TEST_NEO4J_URI to reuse an
-    already-running instance, which makes the local edit loop far quicker
-    than a container start per run.
-    """
-    existing = os.environ.get("CODERAG_TEST_NEO4J_URI")
-    if existing:
-        yield existing
-        return
+    Same image and the same auth-disabled configuration, so the tier tests
+    the deployment the project actually uses rather than a convenient
+    approximation. One container per session, about thirteen seconds for
+    the whole tier.
 
-    docker = pytest.importorskip(
-        "testcontainers.community.neo4j",
-        reason="testcontainers not installed",
+    There is deliberately no environment variable to point this at an
+    already-running database. It existed while the container path was
+    broken, and a second way to obtain a fixture is a second thing that
+    can silently disagree with the first -- a developer whose local
+    instance has stale schema or leftover data would get results nobody
+    else can reproduce.
+    """
+    core = pytest.importorskip(
+        "testcontainers.core.container", reason="testcontainers not installed"
     )
-    container = docker.Neo4jContainer("neo4j:5.26-community")
-    container.with_env("NEO4J_AUTH", "none")
-    container.with_env(
-        "NEO4J_server_jvm_additional", "--add-modules jdk.incubator.vector"
+    # Deliberately the generic container rather than Neo4jContainer. That
+    # helper sets NEO4J_AUTH=neo4j/<password> in its constructor and waits
+    # for readiness using those credentials, so asking it for an unauthenticated
+    # database fights it -- the server logs "Changed password for user 'neo4j'.
+    # IMPORTANT: this change will only take effect if performed before the
+    # database is started for the first time." and the configurations diverge.
+    # coderag ships an auth-disabled database, and the tier should test that,
+    # not a differently-configured approximation of it.
+    container = (
+        core.DockerContainer("neo4j:5.26-community")
+        .with_env("NEO4J_AUTH", "none")
+        .with_env("NEO4J_server_jvm_additional", "--add-modules jdk.incubator.vector")
+        .with_exposed_ports(7687)
     )
     with container as running:
         host = running.get_container_host_ip()
         port = running.get_exposed_port(7687)
+        # No log-waiting: db.wait_until_ready already polls with a real query,
+        # which is the only honest readiness check for Bolt.
         yield f"bolt://{host}:{port}"
 
 

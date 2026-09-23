@@ -92,13 +92,47 @@ def test_symbol_context_traverses_the_graph(db, embedder, indexed):
     assert "services/pricing.py" in rendered
 
 
-def test_what_breaks_finds_callers(db, embedder, indexed):
+TARGET = "services.pricing.PricingService.apply_bulk_discount"
+
+
+def test_call_graph_records_every_caller(db, embedder, indexed):
+    """Graph truth, asserted on the edges rather than on the rendering.
+
+    The two are separate concerns and conflating them makes a brittle
+    test: the pack deliberately folds several call sites in one file into
+    a single card, so a caller can be absent from the output while its
+    edge is perfectly correct.
+    """
+    callers = {
+        r["caller"]
+        for r in db.read(
+            """
+            MATCH (c:Symbol {repo: 't'})-[:CALLS]->(t:Symbol {qname: $q})
+            RETURN c.qname AS caller
+            """,
+            q=TARGET,
+        )
+    }
+    assert "services.order_service.OrderService.place_order" in callers
+    assert "services.order_service.OrderService.quote" in callers
+    assert "api.admin.recalculate" in callers
+
+
+def test_what_breaks_names_every_calling_file(db, embedder, indexed):
+    """Rendering policy: a file must appear, a given symbol in it need not.
+
+    `place_order` and `quote` both call the target from
+    services/order_service.py, and collapse_by_path keeps only the
+    highest-scoring of the two by name. Asserting on whichever one that
+    happens to be makes the test depend on scores, which move whenever
+    line numbers do -- adding licence headers to the samples was enough
+    to flip it.
+    """
     from coderag.context import what_breaks
 
-    rendered = what_breaks(
-        "t", "services.pricing.PricingService.apply_bulk_discount"
-    ).render()
-    assert "place_order" in rendered
+    rendered = what_breaks("t", TARGET).render()
+    assert "services/order_service.py" in rendered
+    assert "api.admin.recalculate" in rendered   # sole caller in its file
 
 
 def test_missing_symbol_is_reported_not_raised(db, embedder, indexed):
