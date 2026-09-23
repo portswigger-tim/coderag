@@ -159,9 +159,7 @@ def stats(
         MATCH (r:Repo {name: $repo})
         RETURN r.embedder AS embedder, r.dim AS dim, r.commit AS commit,
                r.has_history AS has_history, r.indexed_at AS indexed_at,
-               COUNT { MATCH (f:File {repo: $repo}) } AS files,
-               COUNT { MATCH (s:Symbol {repo: $repo}) } AS symbols,
-               COUNT { MATCH (c:Chunk {repo: $repo}) } AS chunks
+               """ + db.repo_counts_clause("$repo") + """
         """,
         repo=repo,
     )
@@ -272,9 +270,7 @@ def repos() -> None:
         RETURN r.name AS name, r.root AS root, r.embedder AS embedder,
                coalesce(r.has_history, false) AS history,
                toString(r.indexed_at) AS indexed_at,
-               COUNT { MATCH (f:File {repo: r.name}) } AS files,
-               COUNT { MATCH (s:Symbol {repo: r.name}) } AS symbols,
-               COUNT { MATCH (c:Chunk {repo: r.name}) } AS chunks
+               """ + db.repo_counts_clause() + """
         ORDER BY r.name
         """
     )

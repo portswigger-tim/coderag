@@ -121,6 +121,26 @@ def vector_index_online() -> bool:
     return bool(rows) and rows[0]["state"] == "ONLINE"
 
 
+# Files, symbols and chunks for a repo, as three independent subqueries.
+#
+# Written once and shared because the obvious alternative is a trap: three
+# chained OPTIONAL MATCH clauses against the same repo read naturally and
+# return the right integers -- count(DISTINCT ...) dedupes them -- while
+# making the planner materialise files x symbols x chunks rows to do it. On
+# one 100-file library that was 140 million rows and 12 seconds to produce
+# three numbers. Correct output, so only a profile reveals it.
+REPO_COUNTS = (
+    "COUNT {{ MATCH (f:File {{repo: {key}}}) }} AS files, "
+    "COUNT {{ MATCH (s:Symbol {{repo: {key}}}) }} AS symbols, "
+    "COUNT {{ MATCH (c:Chunk {{repo: {key}}}) }} AS chunks"
+)
+
+
+def repo_counts_clause(key: str = "r.name") -> str:
+    """The RETURN fragment above, keyed on a repo name expression."""
+    return REPO_COUNTS.format(key=key)
+
+
 def count_chunks(repo: str) -> int:
     rows = read("MATCH (c:Chunk {repo: $repo}) RETURN count(c) AS n", repo=repo)
     return rows[0]["n"] if rows else 0

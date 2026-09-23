@@ -201,9 +201,7 @@ def index_status() -> str:
         RETURN r.name AS repo, r.embedder AS embedder, r.dim AS dim,
                coalesce(r.has_history, false) AS has_history,
                toString(r.indexed_at) AS indexed_at,
-               COUNT { MATCH (f:File {repo: r.name}) } AS files,
-               COUNT { MATCH (s:Symbol {repo: r.name}) } AS symbols,
-               COUNT { MATCH (c:Chunk {repo: r.name}) } AS chunks
+               """ + db.repo_counts_clause() + """
         ORDER BY r.name
         """
     )

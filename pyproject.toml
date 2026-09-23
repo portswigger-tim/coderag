@@ -23,7 +23,11 @@ coderag = "coderag.cli:app"
 coderag-mcp = "coderag.mcp_server:main"
 
 [dependency-groups]
-dev = ["pytest>=8.3", "pytest-asyncio>=0.24"]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "testcontainers[neo4j]>=4.8",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -34,4 +38,8 @@ packages = ["src/coderag"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-markers = ["neo4j: requires a running Neo4j instance"]
+markers = ["neo4j: requires Docker; spins up Neo4j via testcontainers"]
+# The default run stays fast and dependency-free -- no Docker, no database,
+# about a second. The integration tier is opt-in: `uv run pytest -m neo4j`,
+# or `-m ""` for everything. CI runs both.
+addopts = "-m 'not neo4j'"
