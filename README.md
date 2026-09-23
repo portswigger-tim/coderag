@@ -149,6 +149,17 @@ Honest accounting, because the measurements say something more specific than "gr
   the numbers are near-identical. Search quality here comes mostly from weighted hybrid retrieval,
   not from the graph.
 
+### What `coderag eval` cannot tell you
+
+The golden set scores retrieval against the bundled samples, and those samples are clean: no
+licence headers, almost no grouped imports. So a chunking bug that only fires on real-world
+boilerplate is invisible to it. That is not hypothetical — the licence-header defect scored
+**16/16 both with the fix and with it deliberately reverted**, and was found instead by asking
+an indexed 161-file Go repository a question. Chunking rules are therefore guarded by unit
+tests in `tests/test_chunker.py`, which assert in both directions: boilerplate must not be
+indexed, and the doc comments on types must be. Eval measures ranking quality; it does not
+measure what is eligible to be ranked.
+
 Two retrieval findings worth recording, since both were measured rather than assumed:
 
 - **Import blocks make terrible chunks.** They name every domain type in a file without saying
@@ -286,7 +297,7 @@ samples/        one implementation per language, plus a scripted git history
 
 ```bash
 uv sync
-uv run pytest                 # 28 tests, no database required
+uv run pytest                 # 40 tests, no database required
 uv run coderag eval           # scored against the sample
 uv run coderag eval --no-graph
 ```

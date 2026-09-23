@@ -127,3 +127,72 @@ questions:
       - "base_price"
       - "apply_coupon"
     max_tokens: 500
+
+  # --- Language coverage -------------------------------------------------
+  #
+  # q1-q10 are almost entirely Python, which hid a real defect: the
+  # leftover-module chunker only understood Python's import and comment
+  # syntax, so Go, Rust, Java and TypeScript files were indexing their
+  # licence headers and import lists as content. Eval passed 10/10
+  # throughout, in both directions, because it never asked those languages
+  # anything. These cases exist so that a chunking change has to survive
+  # every language it touches, not just the one the harness grew up on.
+
+  - id: q11
+    repo: bookstore-rust
+    baseline_root: rust
+    question: "How is the bulk discount calculated in the Rust implementation?"
+    baseline_grep: "discount"
+    expect_symbols:
+      - src.pricing.apply_bulk_discount
+    min_recall: 1.0
+
+  - id: q12
+    repo: bookstore-java
+    baseline_root: java
+    question: "How is the bulk discount calculated in the Java implementation?"
+    baseline_grep: "discount"
+    expect_symbols:
+      - PricingService.applyBulkDiscount
+    min_recall: 1.0
+
+  - id: q13
+    repo: bookstore-typescript
+    baseline_root: typescript
+    question: "How is the bulk discount calculated in the TypeScript implementation?"
+    baseline_grep: "discount"
+    expect_symbols:
+      - applyBulkDiscount
+    min_recall: 1.0
+
+  - id: q14
+    repo: bookstore-go
+    baseline_root: go
+    question: "Where are orders saved to storage?"
+    baseline_grep: "Save"
+    expect_symbols:
+      - order_repo.Save
+    min_recall: 1.0
+
+  # Types are not callables, so they are never their own chunk: a Rust enum
+  # or a TypeScript interface lives in the leftover module chunk for its
+  # file, along with the doc comment above it. An over-eager boilerplate
+  # filter deletes exactly that. These two ask for a type's shape and so
+  # fail if module chunks, or the doc comments in them, stop being indexed.
+  - id: q15
+    repo: bookstore-rust
+    baseline_root: rust
+    question: "What fields does a sellable book have?"
+    baseline_grep: "struct Book"
+    expect_files:
+      - src/models.rs
+    min_recall: 1.0
+
+  - id: q16
+    repo: bookstore-typescript
+    baseline_root: typescript
+    question: "What fields does a book have?"
+    baseline_grep: "interface Book"
+    expect_files:
+      - src/models.ts
+    min_recall: 1.0
