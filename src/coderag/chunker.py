@@ -19,17 +19,116 @@ OVERLAP_LINES = 15
 # file without saying anything about behaviour, which makes them match almost
 # every query and answer none of them. They stay in the chunk *header* for
 # context; they do not get to be a chunk of their own.
+#
+# Matching line prefixes alone only covers languages that put one import per
+# line. Go, Rust and TypeScript all group them inside a delimiter:
+#
+#     import (                 use foo::{         import {
+#         "context"                bar,               a,
+#     )                        };                 } from "x"
+#
+# There only the opening line carries a keyword; every path inside is a bare
+# token that no prefix matches, so the whole block used to survive into a
+# module chunk. _strip_import_blocks removes the span between delimiters.
 _IMPORT_PREFIXES = (
     "import ", "from ", "package ", "use ", "#include", "using ",
     "export * ", "export {", "require(", "const {",
 )
+# Only import grouping. Go's `var (` and `const (` blocks look identical but
+# declare real values -- `const kvStreamPrefix = "KV_"` is an answer, not
+# vocabulary -- so they stay.
+_IMPORT_BLOCK_OPEN = ("import (", "import(", "import {", "use {")
 # Below this, a module chunk is punctuation and closing braces.
 MIN_MODULE_CHUNK_LINES = 3
+
+# The licence header, and only the licence header.
+#
+# A repository puts a byte-identical Apache or MIT block at the top of every
+# file. Indexed as content that is one near-duplicate vector per file -- 86
+# of them across 7 distinct texts on one 161-file Go repo -- each competing
+# in every search and answering nothing.
+#
+# The rule is positional, not syntactic: strip the run of comments *before
+# any code*, which is where licences live in every language. Comments deeper
+# in the file are left alone, because there they are documentation -- Rust's
+# `///`, Go's `// Foo does...`, Java's `/** */` -- and a type's doc comment
+# is often the only prose describing it.
+_LINE_COMMENT_PREFIXES = ("#", "//", "--", ";", "!")
+_BLOCK_COMMENT_SPANS = (("/*", "*/"), ("<!--", "-->"), ("=begin", "=end"))
 
 
 def _is_import_line(line: str) -> bool:
     stripped = line.strip()
     return any(stripped.startswith(prefix) for prefix in _IMPORT_PREFIXES)
+
+
+def _strip_leading_comment_run(
+    numbered: list[tuple[int, str]],
+) -> list[tuple[int, str]]:
+    """Drop the comment run at the top of a file, stopping at the first code.
+
+    Interior lines of a block comment carry no marker of their own --
+    "Copyright 2025." is indistinguishable from code by prefix -- so block
+    spans are tracked from their delimiters. Python's triple quote is
+    deliberately not a delimiter here: it is also an ordinary string
+    literal, and a module docstring is documentation worth keeping.
+    """
+    closer: str | None = None
+    for index, (_, text) in enumerate(numbered):
+        stripped = text.strip()
+        if closer is not None:
+            if closer in stripped:
+                closer = None
+            continue
+        opened = next(
+            (c for o, c in _BLOCK_COMMENT_SPANS if stripped.startswith(o)), None
+        )
+        if opened is not None:
+            if opened not in stripped[2:]:   # not a one-line /* ... */
+                closer = opened
+            continue
+        if any(stripped.startswith(p) for p in _LINE_COMMENT_PREFIXES):
+            continue
+        return numbered[index:]              # first real code line
+    return []
+
+
+def _strip_import_blocks(numbered: list[tuple[int, str]]) -> list[tuple[int, str]]:
+    """Drop delimited import groups, keeping everything else.
+
+    Tracks nesting depth from the opening line's own brackets so a one-line
+    `use foo::{bar};` closes immediately and an unterminated block cannot
+    swallow the rest of the file.
+    """
+    out: list[tuple[int, str]] = []
+    depth = 0
+    for lineno, text in numbered:
+        stripped = text.strip()
+        if depth == 0 and any(stripped.startswith(o) for o in _IMPORT_BLOCK_OPEN):
+            depth = stripped.count("(") + stripped.count("{")
+            depth -= stripped.count(")") + stripped.count("}")
+            if depth < 0:
+                depth = 0
+            continue
+        if depth > 0:
+            depth += stripped.count("(") + stripped.count("{")
+            depth -= stripped.count(")") + stripped.count("}")
+            if depth < 0:
+                depth = 0
+            continue
+        out.append((lineno, text))
+    return out
+
+
+def _is_comment_line(line: str) -> bool:
+    """A Python-style comment line, stripped wherever it appears.
+
+    Kept narrow on purpose. Extending this to `//` would also delete Rust's
+    `///` and Go's doc comments from module-level chunks, and for a type
+    that is frequently the only prose describing it. Licence headers are
+    handled positionally instead, by _strip_leading_comment_run.
+    """
+    return line.strip().startswith("#")
 
 
 @dataclass(slots=True)
@@ -102,13 +201,20 @@ def chunk_file(repo: str, parsed: ParsedFile, source: str) -> list[Chunk]:
     # still answers questions ("where is the client configured?"), so it is
     # chunked too rather than dropped.
     source_lines = source.splitlines()
-    leftover = [
+    # Order matters: the block stripper has to see the opening `import (`
+    # line to know a block has started, and _is_import_line would already
+    # have removed it. So groups are stripped by span first, then the
+    # per-line filters run over what survives.
+    uncovered = [
         (i + 1, line)
         for i, line in enumerate(source_lines)
-        if (i + 1) not in covered
-        and line.strip()
-        and not line.strip().startswith("#")
-        and not _is_import_line(line)
+        if (i + 1) not in covered and line.strip()
+    ]
+    spans_removed = _strip_import_blocks(_strip_leading_comment_run(uncovered))
+    leftover = [
+        (lineno, line)
+        for lineno, line in spans_removed
+        if not _is_comment_line(line) and not _is_import_line(line)
     ]
     if leftover:
         header = _header(repo, parsed, None)
