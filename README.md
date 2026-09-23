@@ -301,3 +301,12 @@ uv run pytest                 # 40 tests, no database required
 uv run coderag eval           # scored against the sample
 uv run coderag eval --no-graph
 ```
+
+## Licence
+
+MIT — see [LICENSE](LICENSE).
+
+The Apache 2.0 headers under `samples/` are fixture data, not a second licence on this
+project. Real repositories put a header on every file, and the sample tree exists to look
+like one: it is what exercises the leading-comment stripping in `chunker.py` across five
+languages on every `coderag demo`.
